@@ -23,15 +23,12 @@ public class Delivery {
 
     public void deliver() {
         log.info("开始投递职位...");
-        playwrightWebDrive.refreshJob(requireConfig);
-        // 投递逻辑实现
-        // playwrightWebDrive.search(ProcessConfig.BossUrl+ ProcessConfig.JobUri, requireConfig);
-        // while(true){
-        //     playwrightWebDrive.getJobs().forEach(job -> {
-        //         playwrightWebDrive.applyJob(job);
-        //     });
-        // }
+        while(true){
+            try {
+                playwrightWebDrive.refreshJob(requireConfig);
+            } catch (Throwable e) {
+                log.error("投递职位出现异常: {},重新尝试", e.getMessage());
+            }
+        }
     }
-
-    
 }

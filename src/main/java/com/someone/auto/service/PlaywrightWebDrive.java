@@ -103,8 +103,7 @@ public class PlaywrightWebDrive implements ActionDrive {
         log.info("search url:{}",searchUrl);
     }
     public void applyJob(){
-        // 投递延时 模拟真人
-        ThreadHelper.sleepByRandom(ProcessConfig.ProcessInterval);
+        
         //点击“立即沟通”按钮
         Locator charBtn = page.locator("a.op-btn-chat");
         if (charBtn.count() == 0) {
@@ -120,13 +119,16 @@ public class PlaywrightWebDrive implements ActionDrive {
             if (count==0 && cancelBtn.count() == 0) {
                 log.info("未找到取消按钮等待再次判定");
                 ThreadHelper.sleepByRandom(0);
+                if (count > 3) {
+                    log.info("未找到取消按钮，放弃操作");
+                    throw new RuntimeException("未找到取消按钮");
+                }
             }else if (count==1 && cancelBtn.count() == 0){
-                count ++;
                 break;
             }else{
                 cancelBtn.all().forEach(Locator::click);
-                count ++;
             }
+            count ++;
         }
     }
     /**
@@ -136,7 +138,8 @@ public class PlaywrightWebDrive implements ActionDrive {
     public void jobHandle(RequireConfig requireConfig,Response response) {
         String text = response.text();
         JSONObject jsonObject = new JSONObject(text);
-        
+        // 投递延时 模拟真人
+        ThreadHelper.sleepByRandom(ProcessConfig.ProcessInterval);
         /**
          * 招聘者信息
          */
@@ -167,11 +170,10 @@ public class PlaywrightWebDrive implements ActionDrive {
         }
         RequireChecker requireChecker = new RequireChecker(bossInfo, brandComInfo, jobInfo, requireConfig);
         if (!requireChecker.checkAll()) {
-            ThreadHelper.sleepByRandom(0);
             return;
         }
         log.info("投递岗位：{} | 公司名称：{}| 薪资区间：{}", jobInfo.getJobName(),brandComInfo.getBrandName(),jobInfo.getSalaryDesc());
-
+        ThreadHelper.sleepByRandom(1);
         applyJob();
     }
     private void saveCookies() {
@@ -305,17 +307,24 @@ public class PlaywrightWebDrive implements ActionDrive {
                 for (; i < count; i++) {
                     Locator nth = cards.nth(i);
                     // 滚动到元素并确保可见
-                    nth.scrollIntoViewIfNeeded();
-                    Response response = page.waitForResponse(res->{
-                        Request request = res.request();
-                        return request.url().startsWith(ProcessConfig.BossUrl+ProcessConfig.JobDetailUri);
-                    },()->{
-                        nth.click();
-                    });
-                    jobHandle(requireConfig, response); 
+                    try{
+                        nth.scrollIntoViewIfNeeded();
+                        Response response = page.waitForResponse(res->{
+                            Request request = res.request();
+                            return request.url().startsWith(ProcessConfig.BossUrl+ProcessConfig.JobDetailUri);
+                        },new Page.WaitForResponseOptions().setTimeout(2000),()->{
+                            nth.click();
+                        });
+                        jobHandle(requireConfig, response); 
+                     }catch(Throwable t){
+                        log.error("请求捕捉错误：{}", t);
+                        continue;
+                     }
                 }
                 page.evaluate("window.scrollTo(0, document.body.scrollHeight);");
-            }catch(Throwable t){
+                //等待新数据加载
+                ThreadHelper.sleepByRandom(1);
+            }catch(Exception t){
                 log.error("迭代出现错误：{}",t.getMessage());
             }
         }
